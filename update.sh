@@ -11,10 +11,9 @@ REPO_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 cd "${REPO_DIR}"
 
 # First, see if the origin is already nbenlab
-ghaddr="git remote get-url origin"
-if [ "$ghaddr" = "git@github.com:nbenlab/drawFAVA" ]
-then echo "-------------------------------------------------------------------"
-     echo "Your local repository appears to be cloned from nbenlab/drawFAVA"
+ghaddr="`git remote get-url origin`"
+if echo "$ghaddr" | grep -q "git@github.com:nbenlab/drawFAVA"
+then echo "Your local repository appears to be cloned from nbenlab/drawFAVA"
      echo "instead of from <your GitHub username>/drawFAVA. In order to use"
      echo "this repository, you need to first fork nbenlab/drawFAVA repository"
      echo "to your user account then clone the forked repository."
@@ -22,21 +21,49 @@ then echo "-------------------------------------------------------------------"
 fi
 
 # Next, git pull!
-if ! git pull --ff-only
+# First check if the repo is clean.
+if [ -n "`git status --porcelain | grep -v '^ \??'`" ]
 then echo "-------------------------------------------------------------------"
+     echo "Your repository contains changed files. If you've edited"
+     echo 'annotations, try running the `bash sync.sh` script first.'
+     exit 1
+fi
+# Next, do the pull.
+echo "-------------------------------------------------------------------"
+echo "Pulling from user repository..."
+if ! git pull --ff-only
+then echo ""
      echo "Git pull failed!"
      echo "This likely means that something in your local GitHub repo isn't"
      echo "committed. If you've edited annotations, try running the"
      echo '`bash sync.sh` script first.'
      exit 1
 fi
-   
-if ! git pull --rebase git@github.com:nbenlab/drawFAVA main
+
+# Git pull the upstream; if the upstream doesn't exist, add it first.
+if git remote -vv | grep -q '^upstream '
 then echo "-------------------------------------------------------------------"
-     echo "Git pull from upstream failed!"
-     exit 1
+     echo "Git upstream already found."
+else echo "-------------------------------------------------------------------"
+     echo "Adding nbenlab/drawFAVA upstream repository."
+     git remote add upstream git@github.com:nbenlab/drawFAVA
 fi
 
+# Fetch from upstream.
+echo "-------------------------------------------------------------------"
+echo "Checking nbenlab/drawFAVA for updates..."
+git fetch upstream main
+# See if there's a difference there.
+updiff="`git rev-list --count HEAD..@{upstream}`"
+if [ "$updiff" -gt 0 ]
+then echo ""
+     echo "Updates found! Attempting to merge."
+     git merge --no-edit upstream/main
+else echo ""
+     echo "No updates found."
+fi
+
+echo ""
 echo "-------------------------------------------------------------------"
 echo "Success!"
 
